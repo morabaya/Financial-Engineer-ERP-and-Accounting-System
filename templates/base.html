@@ -3,25 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Engineer ERP</title>
+    <title>Financial Engineer ERP | نظام المحاسبة والإدارة المالية</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
-            <div class="logo">Financial Engineer</div>
+            <div class="logo">
+                <i class="fas fa-chart-pie me-2"></i> Financial Engineer
+                <div style="font-size: 11px; font-weight: normal; opacity: 0.8; margin-top: 4px;">نظام المحاسبة المتكامل (فلسطين)</div>
+            </div>
             <ul class="nav-links">
-                <li><a href="/dashboard" class="active"><i class="fas fa-home"></i> الرئيسية</a></li>
-                <li><a href="/pos"><i class="fas fa-cash-register"></i> نقطة البيع</a></li>
-                <li><a href="/vouchers"><i class="fas fa-file-invoice"></i> السندات</a></li>
-                <li><a href="/invoices"><i class="fas fa-file-invoice-dollar"></i> الفواتير</a></li>
-                <li><a href="/inventory"><i class="fas fa-boxes"></i> المخازن</a></li>
-                <li><a href="/reports"><i class="fas fa-chart-line"></i> التقارير الماليـة</a></li>
-                <li><a href="/loans"><i class="fas fa-hand-holding-usd"></i> القروض</a></li>
-                <li><a href="/settings"><i class="fas fa-cog"></i> الإعدادات</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('dashboard', 'الرئيسية', '/dashboard_view')"><i class="fas fa-home"></i> الرئيسية والمؤشرات</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('pos', 'نقطة البيع (POS)', '/pos')"><i class="fas fa-cash-register"></i> نقطة البيع (POS)</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('vouchers', 'إدارة السندات', '/vouchers')"><i class="fas fa-file-invoice"></i> السندات (قبض/صرف/قيد)</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('invoices', 'الفواتير والضريبة', '/invoices')"><i class="fas fa-file-invoice-dollar"></i> الفواتير (مبيعات/مشتريات)</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('inventory', 'المخازن والأصناف', '/inventory')"><i class="fas fa-boxes"></i> المخازن والأصناف</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('checks', 'الشيكات والبنوك', '/checks_view')"><i class="fas fa-money-check-alt"></i> الشيكات والبنوك</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('reports', 'التقارير المالية', '/reports')"><i class="fas fa-chart-line"></i> القوائم والتقارير المالية</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('loans', 'حاسبة القروض', '/loans')"><i class="fas fa-hand-holding-usd"></i> القروض والتسهيلات</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('accounts', 'شجرة الحسابات', '/accounts_view')"><i class="fas fa-sitemap"></i> دليل الحسابات (CoA)</a></li>
+                <li><a href="javascript:void(0)" onclick="openTab('settings', 'الإعدادات', '/settings')"><i class="fas fa-cog"></i> الإعدادات والتهيئة</a></li>
             </ul>
         </nav>
 
@@ -29,31 +34,43 @@
         <main class="main-content">
             <!-- Top Header -->
             <header class="top-bar">
-                <div class="user-info">مرحباً، <span id="username">المستخدم</span></div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="user-badge"><i class="fas fa-user-circle me-1"></i> المدير المالي (Admin)</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                        <i class="fas fa-shekel-sign me-1"></i> العملة الأساسية: شيكل (ILS) | الضريبة 16%
+                    </span>
+                </div>
                 <div class="ai-assistant-trigger" onclick="toggleAI()">
-                    <i class="fas fa-robot"></i> المساعد الذكي
+                    <i class="fas fa-robot"></i> المساعد المالي الذكي (AI)
                 </div>
             </header>
 
             <!-- Multi-Tab System -->
             <div class="tab-container">
                 <div class="tab-headers" id="tab-headers">
-                    <!-- Tabs will be added here dynamically -->
+                    <!-- Dynamic tabs will appear here -->
                 </div>
                 <div class="tab-body" id="tab-body">
-                    <!-- Content of the active tab -->
+                    <!-- Loaded tab view -->
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- AI Floating Assistant -->
+    <!-- AI Floating Assistant Window -->
     <div id="ai-chat-window" class="ai-hidden">
-        <div class="ai-header">المساعد المالي الذكي <span onclick="toggleAI()">×</span></div>
-        <div id="ai-messages" class="ai-messages"></div>
+        <div class="ai-header">
+            <span><i class="fas fa-robot me-1"></i> المساعد المالي الذكي</span>
+            <span onclick="toggleAI()">&times;</span>
+        </div>
+        <div id="ai-messages" class="ai-messages">
+            <div class="ai-msg p-2 mb-2 bg-primary-subtle rounded text-start">
+                أهلاً بك! أنا مساعدك المالي الذكي. يمكنك طلبي إصدار سند، أو استخراج ميزان المراجعة، أو السؤال عن أعلى المدينين ونواقص المخزون مباشرة باللغة الطبيعية!
+            </div>
+        </div>
         <div class="ai-input-area">
-            <input type="text" id="ai-input" placeholder="اسأل عن تقرير أو اطلب إنشاء سند...">
-            <button onclick="sendToAI()">إرسال</button>
+            <input type="text" id="ai-input" placeholder="اطلب إنشاء سند أو استخراج تقرير..." autocomplete="off">
+            <button onclick="sendToAI()"><i class="fas fa-paper-plane"></i></button>
         </div>
     </div>
 
