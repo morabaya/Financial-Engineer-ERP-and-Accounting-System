@@ -35,7 +35,8 @@
             <!-- Top Header -->
             <header class="top-bar">
                 <div class="d-flex align-items-center gap-3">
-                    <span class="user-badge"><i class="fas fa-user-circle me-1"></i> المدير المالي (Admin)</span>
+                    <span class="user-badge"><i class="fas fa-user-circle me-1"></i> {{ session.get('username', 'مستخدم') }}</span>
+                    <form method="post" action="/logout" class="m-0"><button class="btn btn-sm btn-outline-secondary" type="submit">خروج</button></form>
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
                         <i class="fas fa-shekel-sign me-1"></i> العملة الأساسية: شيكل (ILS) | الضريبة 16%
                     </span>

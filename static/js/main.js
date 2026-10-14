@@ -2,6 +2,30 @@
 
 const openTabsState = {};
 
+function appendMessage(container, text, kind, allowMarkup = false) {
+    const node = document.createElement('div');
+    node.className = kind;
+    if (!allowMarkup) {
+        node.textContent = text;
+    } else {
+        const parsed = new DOMParser().parseFromString(String(text), 'text/html');
+        const allowed = new Set(['B', 'BR', 'I', 'EM', 'STRONG']);
+        const copySafe = (source, target) => {
+            source.childNodes.forEach(child => {
+                if (child.nodeType === Node.TEXT_NODE) target.appendChild(document.createTextNode(child.textContent));
+                else if (child.nodeType === Node.ELEMENT_NODE && allowed.has(child.tagName)) {
+                    const safe = document.createElement(child.tagName.toLowerCase());
+                    target.appendChild(safe);
+                    copySafe(child, safe);
+                }
+            });
+        };
+        copySafe(parsed.body, node);
+    }
+    container.appendChild(node);
+    return node;
+}
+
 function toggleAI() {
     const aiWindow = document.getElementById('ai-chat-window');
     if (aiWindow) {
@@ -92,7 +116,7 @@ async function sendToAI() {
     const text = input ? input.value.trim() : '';
     if (!text) return;
 
-    messages.innerHTML += `<div class="user-msg p-2 mb-2 bg-light rounded text-end"><b>أنت:</b> ${text}</div>`;
+    appendMessage(messages, `أنت: ${text}`, 'user-msg p-2 mb-2 bg-light rounded text-end');
     input.value = '';
     messages.scrollTop = messages.scrollHeight;
 
@@ -110,7 +134,7 @@ async function sendToAI() {
         const loadElem = document.getElementById(loadingId);
         if (loadElem) loadElem.remove();
 
-        messages.innerHTML += `<div class="ai-msg p-2 mb-2 bg-primary-subtle rounded text-start"><b>المساعد المالي:</b><br>${data.reply}</div>`;
+        appendMessage(messages, `المساعد المالي: ${data.reply || 'لا يوجد رد.'}`, 'ai-msg p-2 mb-2 bg-primary-subtle rounded text-start', true);
     } catch (err) {
         const loadElem = document.getElementById(loadingId);
         if (loadElem) loadElem.remove();

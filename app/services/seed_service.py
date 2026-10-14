@@ -1,4 +1,5 @@
-import hashlib
+import os
+from werkzeug.security import generate_password_hash
 from sqlalchemy.orm import Session
 from app.models.financials import Account, AccountType, Currency
 from app.models.contacts import Contact, ContactType
@@ -181,12 +182,15 @@ def seed_database(db: Session):
 
     admin_role = db.query(Role).filter(Role.name == "Admin").first()
     admin_user = db.query(User).filter(User.username == "admin").first()
-    if not admin_user:
-        # Default password: admin123 (SHA-256 for simplicity)
-        pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
+    initial_password = os.environ.get("INITIAL_ADMIN_PASSWORD")
+    if admin_user and initial_password:
+        # Explicit password rotation also upgrades legacy hashes.
+        admin_user.password_hash = generate_password_hash(initial_password)
+        db.commit()
+    elif not admin_user and initial_password:
         admin_user = User(
             username="admin",
-            password_hash=pwd_hash,
+            password_hash=generate_password_hash(initial_password),
             full_name="المدير المالي الرئيسي",
             email="admin@financial-engineer.local",
             language="ar",

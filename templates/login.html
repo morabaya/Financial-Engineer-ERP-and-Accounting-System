@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>تسجيل الدخول | Financial Engineer ERP</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-light">
+  <main class="container min-vh-100 d-flex align-items-center justify-content-center">
+    <form method="post" class="card shadow-sm p-4" style="width:min(100%,420px)" autocomplete="on">
+      <h1 class="h4 mb-3">تسجيل الدخول للنظام</h1>
+      {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+      <label class="form-label" for="username">اسم المستخدم</label>
+      <input class="form-control mb-3" id="username" name="username" required autocomplete="username">
+      <label class="form-label" for="password">كلمة المرور</label>
+      <input class="form-control mb-3" id="password" type="password" name="password" required autocomplete="current-password">
+      <button class="btn btn-primary w-100" type="submit">دخول</button>
+    </form>
+  </main>
+</body>
+</html>

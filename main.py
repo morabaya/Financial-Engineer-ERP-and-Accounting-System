@@ -2,6 +2,7 @@ import datetime
 import os
 import secrets
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from werkzeug.security import check_password_hash
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
@@ -32,26 +33,82 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV", "development").lower() == "production"
 
-# Database Setup
-engine = create_engine('sqlite:///accounting_system.db', connect_args={'check_same_thread': False})
+_database_url = os.environ.get('DATABASE_URL', 'sqlite:///accounting_system.db')
+engine = create_engine(_database_url, connect_args={'check_same_thread': False} if _database_url.startswith('sqlite') else {})
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
-
-# Auto-seed initial data on startup if accounts are empty
 with SessionLocal() as db_session:
-    account_count = db_session.query(Account).count()
-    if account_count == 0:
-        seed_database(db_session)
+    seed_database(db_session)
 
+# Do not expose money-moving actions without a second explicit confirmation.
 @app.before_request
 def create_session():
     request.db = SessionLocal()
+    if request.endpoint in {"login", "static"}:
+        return None
+    if not session.get("user_id"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "يلزم تسجيل الدخول"}), 401
+        return redirect(url_for("login", next=request.path))
+    user = request.db.query(User).filter(User.id == session["user_id"], User.is_active == 1).first()
+    if not user:
+        session.clear()
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "جلسة غير صالحة؛ سجل الدخول مجدداً"}), 401
+        return redirect(url_for("login"))
+    request.current_user = user
+    role_names = {role.name for role in user.roles}
+    policies = {
+        "reseed_database": {"POST": {"Admin"}},
+        "manage_vouchers": {"GET": {"Admin", "Accountant"}, "POST": {"Admin", "Accountant"}},
+        "manage_invoices": {"GET": {"Admin", "Accountant"}, "POST": {"Admin", "Accountant", "Cashier"}},
+        "manage_checks": {"GET": {"Admin", "Accountant"}, "POST": {"Admin", "Accountant"}},
+        "check_action": {"POST": {"Admin", "Accountant"}},
+        "manage_inventory": {"GET": {"Admin", "Accountant", "Cashier"}, "POST": {"Admin", "Accountant"}},
+        "inventory_count": {"POST": {"Admin", "Accountant"}},
+        "manage_loans": {"GET": {"Admin", "Accountant"}, "POST": {"Admin", "Accountant"}},
+        "loan_preview": {"POST": {"Admin", "Accountant"}},
+        "pay_loan_installment": {"POST": {"Admin", "Accountant"}},
+        "dashboard_stats": {"GET": {"Admin", "Accountant"}},
+        "get_report": {"GET": {"Admin", "Accountant"}},
+        "ai_process": {"POST": {"Admin", "Accountant"}},
+        "manage_contacts": {"GET": {"Admin", "Accountant", "Cashier"}, "POST": {"Admin", "Accountant"}},
+        "get_accounts": {"GET": {"Admin", "Accountant"}},
+        "get_currencies": {"GET": {"Admin", "Accountant"}},
+    }
+    allowed_roles = policies.get(request.endpoint, {}).get(request.method)
+    if allowed_roles and role_names.isdisjoint(allowed_roles):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "لا تملك صلاحية لتنفيذ هذا الإجراء"}), 403
+        return "غير مصرح لك بهذا الإجراء", 403
 
 @app.after_request
 def close_session(response):
     if hasattr(request, 'db'):
         request.db.close()
     return response
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
+    user = request.db.query(User).filter(User.username == username, User.is_active == 1).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return render_template('login.html', error="اسم المستخدم أو كلمة المرور غير صحيحة"), 401
+    session.clear()
+    session['user_id'] = user.id
+    session['username'] = user.username
+    target = request.args.get('next', '/dashboard')
+    if not target.startswith('/') or target.startswith('//'):
+        target = '/dashboard'
+    return redirect(target)
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 # ==========================================
 #              PAGE ROUTES
@@ -453,10 +510,32 @@ def get_report(rep_type):
 @app.route('/api/ai/process', methods=['POST'])
 def ai_process():
     data = request.json or {}
-    user_query = data.get('query', '')
+    user_query = str(data.get('query', '')).strip()
     bridge = AIFinancialBridge(request.db)
-    response = bridge.process_natural_language(user_query)
-    return jsonify(response)
+    pending = session.get('pending_ai_action')
+    normalized = user_query.lower()
+    if pending:
+        if normalized in {'أكد', 'تأكيد', 'نعم', 'نفذ', 'نفّذ', 'confirm', 'yes'}:
+            session.pop('pending_ai_action', None)
+            return jsonify(bridge.process_natural_language(pending))
+        if normalized in {'إلغاء', 'الغاء', 'لا', 'cancel', 'no'}:
+            session.pop('pending_ai_action', None)
+            return jsonify({"reply": "تم إلغاء العملية؛ لم يُنشأ أي سند."})
+        session.pop('pending_ai_action', None)
+
+    is_money_action = any(term in normalized for term in ('سند صرف', 'سند قبض', 'payment voucher', 'receipt voucher'))
+    if is_money_action:
+        import re
+        amount_match = re.search(r'(?<![\w])\d+(?:\.\d{1,2})?', normalized)
+        if not amount_match:
+            return jsonify({"reply": "اذكر قيمة السند صراحةً حتى أعرض مسودة للمراجعة.", "requires_confirmation": False})
+        session['pending_ai_action'] = user_query
+        return jsonify({
+            "reply": f"مسودة عملية مالية بقيمة {amount_match.group(0)} ₪. لن يتم الترحيل قبل تأكيدك. أرسل «تأكيد» للتنفيذ أو «إلغاء» للإلغاء.",
+            "requires_confirmation": True
+        })
+
+    return jsonify(bridge.process_natural_language(user_query))
 
 # ==========================================
 #          SYSTEM ADMINISTRATION
