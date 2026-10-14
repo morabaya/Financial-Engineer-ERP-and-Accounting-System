@@ -129,5 +129,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // فتح تبويب لوحة التحكم افتراضياً
-    openTab('dashboard', 'لوحة التحكم', '/api/dashboard/stats');
+    openTab('dashboard', 'لوحة التحكم', '/dashboard_view');
 });

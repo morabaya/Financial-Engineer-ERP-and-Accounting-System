@@ -33,7 +33,8 @@ def create_accounting_entry(
     rate: float = 1.0, 
     source_module: str = "MANUAL", 
     entry_date: datetime.datetime = None, 
-    user_id: int = 1
+    user_id: int = 1,
+    commit: bool = True
 ) -> int:
     """
     محرك القيود المزدوجة المتطابق مع المعايير المحاسبية العالمية:
@@ -155,6 +156,9 @@ def create_accounting_entry(
         new_value=f"تم إنشاء القيد {entry_no}: {description} بقيمة {total_debit:,.2f} {currency}"
     )
     db.add(audit)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
     return entry.id

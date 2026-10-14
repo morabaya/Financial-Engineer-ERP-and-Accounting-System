@@ -162,7 +162,8 @@ class InvoiceService:
         if payment_method == 'Cash':
             invoice.paid_amount = total_after_tax
 
-        self.db.commit()
+        # Keep invoice, stock movements, journal entries and audit in one DB transaction.
+        # Do not commit until every posting step succeeds.
 
         # إنشاء القيود المحاسبية التلقائية بدقة مطلقة
         # الحسابات القياسية
@@ -188,7 +189,7 @@ class InvoiceService:
             if total_tax > 0:
                 lines.append({'account_id': vat_out_acc.id, 'debit': 0.0, 'credit': round(total_tax, 2), 'note': "ضريبة القيمة المضافة 16%"})
 
-            create_accounting_entry(self.db, f"فاتورة مبيعات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id)
+            create_accounting_entry(self.db, f"فاتورة مبيعات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id, commit=False)
 
             # قيد تكلفة البضاعة المباعة (COGS)
             if cogs_total > 0:
@@ -196,7 +197,7 @@ class InvoiceService:
                     {'account_id': cogs_acc.id, 'debit': round(cogs_total, 2), 'credit': 0.0, 'note': f"تكلفة مبيعات فاتورة {inv_no}"},
                     {'account_id': stock_acc.id, 'debit': 0.0, 'credit': round(cogs_total, 2), 'note': "صرف بضاعة من المخزن"}
                 ]
-                create_accounting_entry(self.db, f"إثبات تكلفة البضاعة المباعة للفاتورة {inv_no}", f"COGS-{inv_no}", cogs_lines, currency, rate, source_module="INVENTORY", user_id=user_id)
+                create_accounting_entry(self.db, f"إثبات تكلفة البضاعة المباعة للفاتورة {inv_no}", f"COGS-{inv_no}", cogs_lines, currency, rate, source_module="INVENTORY", user_id=user_id, commit=False)
 
         elif inv_type == 'Purchase':
             # من مذكورين: حـ/ المشتريات + حـ/ ضريبة المدخلات 16% -> إلى حـ/ المورد (أو الصندوق)
@@ -205,7 +206,7 @@ class InvoiceService:
                 lines.append({'account_id': vat_in_acc.id, 'debit': round(total_tax, 2), 'credit': 0.0, 'note': "ضريبة مدخلات 16%"})
             lines.append({'account_id': settlement_acc_id, 'contact_id': contact_id if payment_method != "Cash" else None, 'debit': 0.0, 'credit': total_after_tax, 'note': f"مستحق فاتورة مشتريات {inv_no}"})
 
-            create_accounting_entry(self.db, f"فاتورة مشتريات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id)
+            create_accounting_entry(self.db, f"فاتورة مشتريات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id, commit=False)
 
         elif inv_type == 'Sales_Return':
             # مردودات مبيعات: عكس قيد المبيعات
@@ -214,7 +215,7 @@ class InvoiceService:
                 lines.append({'account_id': vat_out_acc.id, 'debit': round(total_tax, 2), 'credit': 0.0, 'note': "رد ضريبة القيمة المضافة"})
             lines.append({'account_id': settlement_acc_id, 'contact_id': contact_id, 'debit': 0.0, 'credit': total_after_tax, 'note': f"إشعار دائن لمردود مبيعات {inv_no}"})
 
-            create_accounting_entry(self.db, f"مردود مبيعات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id)
+            create_accounting_entry(self.db, f"مردود مبيعات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id, commit=False)
 
         elif inv_type == 'Purchase_Return':
             # مردودات مشتريات: عكس قيد المشتريات
@@ -223,7 +224,7 @@ class InvoiceService:
             if total_tax > 0:
                 lines.append({'account_id': vat_in_acc.id, 'debit': 0.0, 'credit': round(total_tax, 2), 'note': "رد ضريبة مدخلات"})
 
-            create_accounting_entry(self.db, f"مردود مشتريات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id)
+            create_accounting_entry(self.db, f"مردود مشتريات رقم {inv_no}", inv_no, lines, currency, rate, source_module="INVOICE", user_id=user_id, commit=False)
 
         audit = AuditLog(
             user_id=user_id,

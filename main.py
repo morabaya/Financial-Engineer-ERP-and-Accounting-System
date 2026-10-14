@@ -1,4 +1,6 @@
 import datetime
+import os
+import secrets
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
@@ -20,7 +22,15 @@ from app.services.ai_bridge import AIFinancialBridge
 from app.services.user_service import UserService
 
 app = Flask(__name__)
-app.secret_key = 'financial_engineer_secret_key_prod_2026'
+# A stable production secret must be supplied through the environment. The random
+# fallback is only for local development and invalidates sessions on restart.
+_secret_key = os.environ.get("FLASK_SECRET_KEY")
+if os.environ.get("FLASK_ENV", "development").lower() == "production" and not _secret_key:
+    raise RuntimeError("FLASK_SECRET_KEY must be configured in production")
+app.secret_key = _secret_key or secrets.token_urlsafe(32)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV", "development").lower() == "production"
 
 # Database Setup
 engine = create_engine('sqlite:///accounting_system.db', connect_args={'check_same_thread': False})
@@ -458,4 +468,5 @@ def reseed_database():
     return jsonify({"message": "تم تهيئة دليل الحسابات والبيانات التأسيسية بنجاح"})
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    is_production = os.environ.get("FLASK_ENV", "development").lower() == "production"
+    app.run(debug=not is_production, host=os.environ.get("HOST", "127.0.0.1"), port=int(os.environ.get("PORT", "5000")))
