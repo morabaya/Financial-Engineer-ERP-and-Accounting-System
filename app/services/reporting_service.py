@@ -94,13 +94,18 @@ class ReportingService:
         lines = query.order_by(JournalEntry.date.asc()).all()
 
         running_balance = 0.0
+        total_debit = 0.0
+        total_credit = 0.0
         items = []
         for line in lines:
             running_balance += (line.debit - line.credit)
+            total_debit += line.debit
+            total_credit += line.credit
             items.append({
                 "date": line.entry.date.strftime("%Y-%m-%d"),
                 "entry_no": line.entry.entry_no,
                 "desc": line.entry.description,
+                "description": line.entry.description,
                 "debit": line.debit,
                 "credit": line.credit,
                 "balance": round(running_balance, 2)
@@ -112,6 +117,9 @@ class ReportingService:
             "tax_number": contact.tax_number or "",
             "phone": contact.phone or "",
             "current_balance": round(contact.current_balance, 2),
+            "total_debit": round(total_debit, 2),
+            "total_credit": round(total_credit, 2),
+            "net_balance": round(running_balance, 2),
             "lines": items
         }
 

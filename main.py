@@ -1,7 +1,9 @@
 import datetime
 import os
 import secrets
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import io
+import csv
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 from werkzeug.security import check_password_hash
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
@@ -11,6 +13,7 @@ from app.models import (
     Base, Account, AccountType, Currency, Contact, 
     Voucher, Invoice, Item, Check, Loan, User
 )
+from app.models.contacts import ContactType
 
 from app.services.seed_service import seed_database
 from app.services.voucher_service import VoucherService
@@ -73,6 +76,10 @@ def create_session():
         "get_report": {"GET": {"Admin", "Accountant"}},
         "ai_process": {"POST": {"Admin", "Accountant"}},
         "manage_contacts": {"GET": {"Admin", "Accountant", "Cashier"}, "POST": {"Admin", "Accountant"}},
+        "update_contact": {"GET": {"Admin", "Accountant", "Cashier"}, "PUT": {"Admin", "Accountant"}},
+        "toggle_contact_status": {"POST": {"Admin", "Accountant"}},
+        "contact_statement": {"GET": {"Admin", "Accountant"}},
+        "export_contact_statement": {"GET": {"Admin", "Accountant"}},
         "get_accounts": {"GET": {"Admin", "Accountant"}},
         "get_currencies": {"GET": {"Admin", "Accountant"}},
     }
@@ -154,6 +161,10 @@ def accounts_view():
 @app.route('/checks_view')
 def checks_view():
     return render_template('checks_view.html')
+
+@app.route('/contacts_view')
+def contacts_view():
+    return render_template('contacts_view.html')
 
 @app.route('/settings')
 def settings():
@@ -240,6 +251,18 @@ def get_currencies():
 #             CONTACTS APIS
 # ==========================================
 
+def parse_contact_type(t_str):
+    if isinstance(t_str, ContactType):
+        return t_str
+    s = str(t_str).strip()
+    if s in [ContactType.CUSTOMER.value, "CUSTOMER", "customer", "عميل", "زبون"]:
+        return ContactType.CUSTOMER
+    elif s in [ContactType.SUPPLIER.value, "SUPPLIER", "supplier", "مورد"]:
+        return ContactType.SUPPLIER
+    elif s in [ContactType.EMPLOYEE.value, "EMPLOYEE", "employee", "موظف"]:
+        return ContactType.EMPLOYEE
+    return ContactType.CUSTOMER
+
 @app.route('/api/contacts', methods=['GET', 'POST'])
 def manage_contacts():
     db = request.db
@@ -249,26 +272,136 @@ def manage_contacts():
         if not name:
             return jsonify({"error": "اسم جهة التعامل مطلوب"}), 400
 
-        c_type = data.get('type', 'عميل')
+        c_type = parse_contact_type(data.get('type', 'عميل'))
+        
+        # Link default CoA account if not specified
+        acc_id = data.get('account_id')
+        if not acc_id:
+            if c_type == ContactType.CUSTOMER:
+                def_acc = db.query(Account).filter(Account.code == "1121").first()
+            elif c_type == ContactType.SUPPLIER:
+                def_acc = db.query(Account).filter(Account.code == "2111").first()
+            else:
+                def_acc = db.query(Account).filter(Account.code == "1122").first()
+            if def_acc:
+                acc_id = def_acc.id
+
         contact = Contact(
-            name=name,
+            name=name.strip(),
             type=c_type,
-            tax_number=data.get('tax_number'),
-            phone=data.get('phone'),
-            email=data.get('email'),
+            tax_number=data.get('tax_number', ''),
+            phone=data.get('phone', ''),
+            email=data.get('email', ''),
+            address=data.get('address', ''),
             city=data.get('city', 'رام الله'),
-            credit_limit=float(data.get('credit_limit', 0.0))
+            currency=data.get('currency', 'ILS'),
+            account_id=acc_id,
+            credit_limit=float(data.get('credit_limit', 0.0)),
+            current_balance=0.0,
+            is_active=True
         )
         db.add(contact)
         db.commit()
-        return jsonify({"message": "تم إضافة جهة التعامل بنجاح", "id": contact.id}), 201
+        return jsonify({"message": "تم إضافة جهة التعامل بنجاح", "id": contact.id, "contact": contact.to_dict()}), 201
 
-    c_type = request.args.get('type')
+    c_type_raw = request.args.get('type')
     query = db.query(Contact)
-    if c_type:
-        query = query.filter(Contact.type == c_type)
-    contacts = query.order_by(Contact.name.asc()).all()
+    if c_type_raw and c_type_raw != 'all':
+        query = query.filter(Contact.type == parse_contact_type(c_type_raw))
+    contacts = query.order_by(Contact.id.desc()).all()
     return jsonify([c.to_dict() for c in contacts])
+
+@app.route('/api/contacts/<int:contact_id>', methods=['GET', 'PUT'])
+def update_contact(contact_id):
+    db = request.db
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        return jsonify({"error": "جهة التعامل غير موجودة"}), 404
+
+    if request.method == 'GET':
+        return jsonify(contact.to_dict())
+
+    data = request.json or {}
+    if 'name' in data and data['name'].strip():
+        contact.name = data['name'].strip()
+    if 'type' in data:
+        contact.type = parse_contact_type(data['type'])
+    if 'tax_number' in data:
+        contact.tax_number = data['tax_number']
+    if 'phone' in data:
+        contact.phone = data['phone']
+    if 'email' in data:
+        contact.email = data['email']
+    if 'address' in data:
+        contact.address = data['address']
+    if 'city' in data:
+        contact.city = data['city']
+    if 'currency' in data:
+        contact.currency = data['currency']
+    if 'credit_limit' in data:
+        contact.credit_limit = float(data.get('credit_limit', 0.0))
+    if 'is_active' in data:
+        contact.is_active = bool(data['is_active'])
+
+    db.commit()
+    return jsonify({"message": "تم تحديث بيانات جهة التعامل بنجاح", "contact": contact.to_dict()})
+
+@app.route('/api/contacts/<int:contact_id>/toggle', methods=['POST'])
+def toggle_contact_status(contact_id):
+    db = request.db
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        return jsonify({"error": "جهة التعامل غير موجودة"}), 404
+
+    contact.is_active = not contact.is_active
+    db.commit()
+    status_str = "تفعيل" if contact.is_active else "إيقاف"
+    return jsonify({"message": f"تم {status_str} جهة التعامل بنجاح", "is_active": contact.is_active})
+
+@app.route('/api/contacts/<int:contact_id>/statement', methods=['GET'])
+def contact_statement(contact_id):
+    reporting = ReportingService(request.db)
+    stmt = reporting.get_contact_statement(contact_id)
+    if "error" in stmt:
+        return jsonify(stmt), 404
+    return jsonify(stmt)
+
+@app.route('/api/contacts/<int:contact_id>/statement/export', methods=['GET'])
+def export_contact_statement(contact_id):
+    reporting = ReportingService(request.db)
+    stmt = reporting.get_contact_statement(contact_id)
+    if "error" in stmt:
+        return jsonify(stmt), 404
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow(["كشف حساب جهة تعامل", stmt.get("contact_name", "")])
+    writer.writerow(["النوع", stmt.get("contact_type", ""), "الرقم الضريبي", stmt.get("tax_number", "")])
+    writer.writerow(["الهاتف", stmt.get("phone", ""), "الرصيد الحالي", stmt.get("current_balance", 0.0)])
+    writer.writerow([])
+    writer.writerow(["التاريخ", "رقم القيد", "البيان", "مدين", "دائن", "الرصيد التراكمي"])
+    
+    for line in stmt.get("lines", []):
+        writer.writerow([
+            line.get("date", ""),
+            line.get("entry_no", ""),
+            line.get("desc", ""),
+            line.get("debit", 0.0),
+            line.get("credit", 0.0),
+            line.get("balance", 0.0)
+        ])
+    
+    writer.writerow([])
+    writer.writerow(["المجموع", "", "", stmt.get("total_debit", 0.0), stmt.get("total_credit", 0.0), stmt.get("net_balance", 0.0)])
+
+    csv_data = output.getvalue()
+    bom_data = '\ufeff' + csv_data
+    return Response(
+        bom_data,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=statement_{contact_id}.csv"}
+    )
 
 # ==========================================
 #             VOUCHERS APIS

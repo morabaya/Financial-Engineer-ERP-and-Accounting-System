@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head><meta charset="UTF-8"><title>جهات التعامل</title></head>
+<body>
+<div class="container-fluid p-0">
+
+  <!-- Page Header -->
+  <div class="page-header d-flex justify-content-between align-items-center px-4 py-3">
+    <div>
+      <h4 class="mb-0"><i class="fas fa-address-book me-2 text-primary"></i>إدارة جهات التعامل</h4>
+      <small class="text-muted">زبائن | موردون | موظفون</small>
+    </div>
+    <div class="d-flex gap-2">
+      <div class="input-group" style="width:260px">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input type="text" id="searchInput" class="form-control" placeholder="ابحث بالاسم أو الهاتف..." oninput="filterContacts()">
+      </div>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        <i class="fas fa-user-plus me-1"></i> إضافة جهة تعامل
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="px-4 pt-2">
+    <ul class="nav nav-tabs" id="contactTabs">
+      <li class="nav-item">
+        <a class="nav-link active" href="#" onclick="loadContacts('all'); setActiveTab(this)">
+          <i class="fas fa-users me-1"></i> الكل
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" onclick="loadContacts('عميل'); setActiveTab(this)">
+          <i class="fas fa-user me-1 text-success"></i> الزبائن
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" onclick="loadContacts('مورد'); setActiveTab(this)">
+          <i class="fas fa-truck me-1 text-warning"></i> الموردون
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" onclick="loadContacts('موظف'); setActiveTab(this)">
+          <i class="fas fa-id-badge me-1 text-info"></i> الموظفون
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="px-4 py-2">
+    <div class="row g-2" id="statsRow">
+      <div class="col-6 col-md-3">
+        <div class="card border-0 bg-success bg-opacity-10 p-2 text-center">
+          <div class="fw-bold text-success" id="statCustomers">0</div>
+          <small class="text-muted">زبائن</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 bg-warning bg-opacity-10 p-2 text-center">
+          <div class="fw-bold text-warning" id="statSuppliers">0</div>
+          <small class="text-muted">موردون</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 bg-info bg-opacity-10 p-2 text-center">
+          <div class="fw-bold text-info" id="statEmployees">0</div>
+          <small class="text-muted">موظفون</small>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 bg-danger bg-opacity-10 p-2 text-center">
+          <div class="fw-bold text-danger" id="statTotalReceivables">0.00 ₪</div>
+          <small class="text-muted">إجمالي الذمم المدينة</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contacts Table -->
+  <div class="px-4 pb-4">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="contactsTable">
+            <thead class="table-dark">
+              <tr>
+                <th>#</th>
+                <th>الاسم</th>
+                <th>النوع</th>
+                <th>الهاتف</th>
+                <th>المدينة</th>
+                <th>الرقم الضريبي</th>
+                <th>الرصيد الحالي</th>
+                <th>الحد الائتماني</th>
+                <th>الحالة</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="contactsBody">
+              <tr><td colspan="10" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ADD / EDIT MODAL ===================== -->
+<div class="modal fade" id="contactModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="modalTitle"><i class="fas fa-user-plus me-2"></i>إضافة جهة تعامل جديدة</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editContactId">
+        <div class="row g-3">
+          <!-- Row 1 -->
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">الاسم الكامل <span class="text-danger">*</span></label>
+            <input type="text" id="contactName" class="form-control" placeholder="مثال: شركة النور للتجارة">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">النوع <span class="text-danger">*</span></label>
+            <select id="contactType" class="form-select" onchange="updateTypeDefaults()">
+              <option value="عميل">🧑‍💼 زبون / عميل</option>
+              <option value="مورد">🚚 مورد</option>
+              <option value="موظف">👤 موظف</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">العملة</label>
+            <select id="contactCurrency" class="form-select">
+              <option value="ILS">₪ شيكل (ILS)</option>
+              <option value="USD">$ دولار (USD)</option>
+              <option value="JOD">JD دينار (JOD)</option>
+              <option value="EUR">€ يورو (EUR)</option>
+            </select>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">رقم الهاتف</label>
+            <input type="text" id="contactPhone" class="form-control" placeholder="05X-XXXXXXX" dir="ltr">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">البريد الإلكتروني</label>
+            <input type="email" id="contactEmail" class="form-control" placeholder="email@example.com" dir="ltr">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">المدينة</label>
+            <select id="contactCity" class="form-select">
+              <option>رام الله</option><option>نابلس</option><option>القدس</option>
+              <option>الخليل</option><option>جنين</option><option>طولكرم</option>
+              <option>قلقيلية</option><option>أريحا</option><option>بيت لحم</option>
+              <option>سلفيت</option><option>غزة</option><option>غيرها</option>
+            </select>
+          </div>
+
+          <!-- Row 3 -->
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">الرقم الضريبي / رقم المشتغل</label>
+            <input type="text" id="contactTax" class="form-control" placeholder="PT-XXXXXXXXX" dir="ltr">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">الحد الائتماني (₪)</label>
+            <input type="number" id="contactCredit" class="form-control" value="0" min="0" step="100">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">العنوان</label>
+            <input type="text" id="contactAddress" class="form-control" placeholder="شارع، حي...">
+          </div>
+
+          <!-- Notes (Employee Extra) -->
+          <div class="col-12" id="employeeFields" style="display:none">
+            <div class="alert alert-info p-2 mb-0">
+              <i class="fas fa-info-circle me-1"></i>
+              الموظف سيُربط بحساب الأجور تلقائياً. يمكن لاحقاً إدارة راتبه من هنا.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveContact()">
+          <i class="fas fa-save me-1"></i> حفظ جهة التعامل
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== STATEMENT MODAL ===================== -->
+<div class="modal fade" id="statementModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="stmtTitle"><i class="fas fa-scroll me-2"></i>كشف حساب</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <!-- Statement Summary -->
+        <div class="row g-0 text-center border-bottom">
+          <div class="col-4 p-3 border-end">
+            <div class="text-muted small">إجمالي مدين</div>
+            <div class="fw-bold fs-5 text-danger" id="stmtDebit">0.00</div>
+          </div>
+          <div class="col-4 p-3 border-end">
+            <div class="text-muted small">إجمالي دائن</div>
+            <div class="fw-bold fs-5 text-success" id="stmtCredit">0.00</div>
+          </div>
+          <div class="col-4 p-3">
+            <div class="text-muted small">الرصيد الصافي</div>
+            <div class="fw-bold fs-5" id="stmtBalance">0.00</div>
+          </div>
+        </div>
+        <!-- Statement Table -->
+        <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+          <table class="table table-sm table-striped mb-0">
+            <thead class="table-secondary sticky-top">
+              <tr>
+                <th>التاريخ</th>
+                <th>البيان</th>
+                <th>رقم المرجع</th>
+                <th>مدين</th>
+                <th>دائن</th>
+                <th>الرصيد التراكمي</th>
+              </tr>
+            </thead>
+            <tbody id="stmtBody">
+              <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-success" onclick="exportContactStatement()">
+          <i class="fas fa-file-excel me-1"></i> تصدير Excel
+        </button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let allContacts = [];
+let currentFilter = 'all';
+let currentStatementId = null;
+
+// ─── Load contacts ───────────────────────────────────────────────────────────
+async function loadContacts(typeFilter = 'all') {
+  currentFilter = typeFilter;
+  const tbody = document.getElementById('contactsBody');
+  tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+
+  let url = '/api/contacts';
+  if (typeFilter !== 'all') url += `?type=${encodeURIComponent(typeFilter)}`;
+
+  try {
+    const res = await fetch(url);
+    allContacts = await res.json();
+    renderTable(allContacts);
+    updateStats(allContacts);
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4"><i class="fas fa-exclamation-circle me-1"></i>${e.message}</td></tr>`;
+  }
+}
+
+// ─── Render Table ─────────────────────────────────────────────────────────────
+function renderTable(contacts) {
+  const tbody = document.getElementById('contactsBody');
+  if (!contacts.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fas fa-inbox fa-2x d-block mb-2"></i>لا توجد جهات تعامل</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = contacts.map((c, i) => {
+    const typeBadge = {
+      'عميل': '<span class="badge bg-success">زبون</span>',
+      'مورد': '<span class="badge bg-warning text-dark">مورد</span>',
+      'موظف': '<span class="badge bg-info text-dark">موظف</span>'
+    }[c.type] || `<span class="badge bg-secondary">${c.type}</span>`;
+
+    const balance = parseFloat(c.current_balance || 0);
+    const balanceClass = balance > 0 ? 'text-danger fw-bold' : balance < 0 ? 'text-success fw-bold' : 'text-muted';
+    const balanceLabel = balance > 0 ? `${balance.toFixed(2)} ₪ (مدين)` : balance < 0 ? `${Math.abs(balance).toFixed(2)} ₪ (دائن)` : '0.00 ₪';
+
+    const creditLimit = parseFloat(c.credit_limit || 0);
+    const statusBadge = c.is_active
+      ? '<span class="badge bg-success-subtle text-success border border-success-subtle">نشط</span>'
+      : '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">موقوف</span>';
+
+    return `<tr>
+      <td class="text-muted small">${i+1}</td>
+      <td>
+        <div class="fw-semibold">${c.name}</div>
+        ${c.email ? `<small class="text-muted">${c.email}</small>` : ''}
+      </td>
+      <td>${typeBadge}</td>
+      <td dir="ltr">${c.phone || '<span class="text-muted">—</span>'}</td>
+      <td>${c.city || '—'}</td>
+      <td dir="ltr"><code>${c.tax_number || '—'}</code></td>
+      <td class="${balanceClass}">${balanceLabel}</td>
+      <td>${creditLimit > 0 ? creditLimit.toFixed(2)+' ₪' : '<span class="text-muted">—</span>'}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" onclick="openStatement(${c.id}, '${c.name}')" title="كشف الحساب">
+            <i class="fas fa-scroll"></i>
+          </button>
+          <button class="btn btn-outline-secondary" onclick="openEditModal(${c.id})" title="تعديل">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-outline-${c.is_active ? 'warning' : 'success'}" onclick="toggleStatus(${c.id}, ${c.is_active})" title="${c.is_active ? 'إيقاف' : 'تفعيل'}">
+            <i class="fas fa-${c.is_active ? 'ban' : 'check'}"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Stats Bar ────────────────────────────────────────────────────────────────
+function updateStats(contacts) {
+  const all = allContacts.length ? allContacts : contacts;
+  // Always compute from all for stats
+  const customers = all.filter(c => c.type === 'عميل').length;
+  const suppliers = all.filter(c => c.type === 'مورد').length;
+  const employees = all.filter(c => c.type === 'موظف').length;
+  const totalReceivables = all.filter(c => c.current_balance > 0)
+                              .reduce((s, c) => s + c.current_balance, 0);
+
+  document.getElementById('statCustomers').textContent = customers;
+  document.getElementById('statSuppliers').textContent = suppliers;
+  document.getElementById('statEmployees').textContent = employees;
+  document.getElementById('statTotalReceivables').textContent = totalReceivables.toFixed(2) + ' ₪';
+}
+
+// ─── Search filter ────────────────────────────────────────────────────────────
+function filterContacts() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!q) { renderTable(allContacts); return; }
+  const filtered = allContacts.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    (c.phone || '').includes(q) ||
+    (c.tax_number || '').toLowerCase().includes(q) ||
+    (c.email || '').toLowerCase().includes(q)
+  );
+  renderTable(filtered);
+}
+
+// ─── Tab switcher ─────────────────────────────────────────────────────────────
+function setActiveTab(el) {
+  document.querySelectorAll('#contactTabs .nav-link').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─── Add Modal ───────────────────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-user-plus me-2"></i>إضافة جهة تعامل جديدة';
+  document.getElementById('editContactId').value = '';
+  document.getElementById('contactName').value = '';
+  document.getElementById('contactType').value = 'عميل';
+  document.getElementById('contactPhone').value = '';
+  document.getElementById('contactEmail').value = '';
+  document.getElementById('contactCity').value = 'رام الله';
+  document.getElementById('contactTax').value = '';
+  document.getElementById('contactCredit').value = '0';
+  document.getElementById('contactAddress').value = '';
+  document.getElementById('contactCurrency').value = 'ILS';
+  updateTypeDefaults();
+  new bootstrap.Modal(document.getElementById('contactModal')).show();
+}
+
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+async function openEditModal(id) {
+  const c = allContacts.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modalTitle').innerHTML = `<i class="fas fa-user-edit me-2"></i>تعديل: ${c.name}`;
+  document.getElementById('editContactId').value = c.id;
+  document.getElementById('contactName').value = c.name;
+  document.getElementById('contactType').value = c.type;
+  document.getElementById('contactPhone').value = c.phone || '';
+  document.getElementById('contactEmail').value = c.email || '';
+  document.getElementById('contactCity').value = c.city || 'رام الله';
+  document.getElementById('contactTax').value = c.tax_number || '';
+  document.getElementById('contactCredit').value = c.credit_limit || 0;
+  document.getElementById('contactAddress').value = c.address || '';
+  document.getElementById('contactCurrency').value = c.currency || 'ILS';
+  updateTypeDefaults();
+  new bootstrap.Modal(document.getElementById('contactModal')).show();
+}
+
+function updateTypeDefaults() {
+  const t = document.getElementById('contactType').value;
+  document.getElementById('employeeFields').style.display = (t === 'موظف') ? 'block' : 'none';
+}
+
+// ─── Save contact ─────────────────────────────────────────────────────────────
+async function saveContact() {
+  const id = document.getElementById('editContactId').value;
+  const name = document.getElementById('contactName').value.trim();
+  if (!name) { alert('الاسم مطلوب!'); return; }
+
+  const payload = {
+    name,
+    type: document.getElementById('contactType').value,
+    phone: document.getElementById('contactPhone').value,
+    email: document.getElementById('contactEmail').value,
+    city: document.getElementById('contactCity').value,
+    tax_number: document.getElementById('contactTax').value,
+    credit_limit: parseFloat(document.getElementById('contactCredit').value) || 0,
+    address: document.getElementById('contactAddress').value,
+    currency: document.getElementById('contactCurrency').value
+  };
+
+  try {
+    let url = '/api/contacts';
+    let method = 'POST';
+    if (id) { url = `/api/contacts/${id}`; method = 'PUT'; }
+
+    const res = await fetch(url, {
+      method,
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('خطأ: ' + (data.error || 'حدث خطأ')); return; }
+
+    bootstrap.Modal.getInstance(document.getElementById('contactModal')).hide();
+    showToast(id ? 'تم تحديث جهة التعامل بنجاح ✅' : 'تمت إضافة جهة التعامل بنجاح ✅', 'success');
+    loadContacts(currentFilter);
+  } catch(e) {
+    alert('خطأ في الاتصال: ' + e.message);
+  }
+}
+
+// ─── Toggle Status ────────────────────────────────────────────────────────────
+async function toggleStatus(id, isActive) {
+  const action = isActive ? 'إيقاف' : 'تفعيل';
+  if (!confirm(`هل تريد ${action} هذه الجهة؟`)) return;
+  try {
+    const res = await fetch(`/api/contacts/${id}/toggle`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) { alert('خطأ: ' + data.error); return; }
+    showToast(`تم ${action} الجهة بنجاح`, 'info');
+    loadContacts(currentFilter);
+  } catch(e) { alert(e.message); }
+}
+
+// ─── Statement Modal ──────────────────────────────────────────────────────────
+async function openStatement(id, name) {
+  currentStatementId = id;
+  document.getElementById('stmtTitle').innerHTML = `<i class="fas fa-scroll me-2"></i>كشف حساب: ${name}`;
+  document.getElementById('stmtBody').innerHTML = '<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+  document.getElementById('stmtDebit').textContent = '...';
+  document.getElementById('stmtCredit').textContent = '...';
+  document.getElementById('stmtBalance').textContent = '...';
+  new bootstrap.Modal(document.getElementById('statementModal')).show();
+
+  try {
+    const res = await fetch(`/api/contacts/${id}/statement`);
+    const data = await res.json();
+
+    document.getElementById('stmtDebit').textContent = (data.total_debit || 0).toFixed(2) + ' ₪';
+    document.getElementById('stmtCredit').textContent = (data.total_credit || 0).toFixed(2) + ' ₪';
+    const bal = data.net_balance || 0;
+    const balEl = document.getElementById('stmtBalance');
+    balEl.textContent = Math.abs(bal).toFixed(2) + ' ₪ ' + (bal > 0 ? '(مدين)' : bal < 0 ? '(دائن)' : '');
+    balEl.className = 'fw-bold fs-5 ' + (bal > 0 ? 'text-danger' : bal < 0 ? 'text-success' : 'text-muted');
+
+    const lines = data.lines || [];
+    if (!lines.length) {
+      document.getElementById('stmtBody').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">لا توجد حركات لهذه الجهة</td></tr>';
+      return;
+    }
+
+    let running = 0;
+    document.getElementById('stmtBody').innerHTML = lines.map(l => {
+      running += (l.debit || 0) - (l.credit || 0);
+      const runClass = running > 0 ? 'text-danger' : running < 0 ? 'text-success' : '';
+      return `<tr>
+        <td dir="ltr">${l.date || '—'}</td>
+        <td>${l.description || '—'}</td>
+        <td dir="ltr"><code>${l.entry_no || '—'}</code></td>
+        <td class="text-danger">${l.debit > 0 ? l.debit.toFixed(2) : '—'}</td>
+        <td class="text-success">${l.credit > 0 ? l.credit.toFixed(2) : '—'}</td>
+        <td class="${runClass} fw-semibold">${Math.abs(running).toFixed(2)} ${running > 0 ? 'م' : running < 0 ? 'د' : ''}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('stmtBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger">خطأ: ${e.message}</td></tr>`;
+  }
+}
+
+// ─── Export ────────────────────────────────────────────────────────────────────
+function exportContactStatement() {
+  if (!currentStatementId) return;
+  window.open(`/api/contacts/${currentStatementId}/statement/export`, '_blank');
+}
+
+// ─── Toast notification ────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const colors = { success: '#198754', danger: '#dc3545', info: '#0dcaf0', warning: '#ffc107' };
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;bottom:20px;left:20px;background:${colors[type]||colors.success};color:white;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:opacity 0.4s`;
+  toast.innerHTML = `<i class="fas fa-check-circle me-2"></i>${msg}`;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 3000);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadContacts('all');
+</script>
+</body>
+</html>
